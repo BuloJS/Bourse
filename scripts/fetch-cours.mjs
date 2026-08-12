@@ -1,16 +1,22 @@
 /**
  * Récupère les cours et écrit data/cours.json.
  *
- * Tourne dans une GitHub Action, donc côté serveur : pas de CORS à contourner,
- * et aucune clé d'API.
+ * Tourne dans une GitHub Action, donc côté serveur : pas de CORS à contourner.
  *
- * Sources :
- *   - Stooq pour les actions et ETF (CSV, sans compte) ;
- *   - Frankfurter (données BCE) pour le taux EUR/USD.
+ * Deux fournisseurs sont tentés dans l'ordre :
  *
- * Yahoo Finance a été abandonné : il répond 429 depuis les serveurs GitHub,
- * dont les adresses IP sont partagées par des milliers de projets et donc
- * limitées en permanence. Ce n'était pas réparable côté code.
+ *   1. Twelve Data, si le secret TWELVEDATA_KEY est présent. C'est la voie
+ *      fiable : une API déclarée, qui ne bloque pas les serveurs partagés.
+ *      La clé reste dans les secrets du dépôt, jamais dans la page.
+ *   2. Stooq, sans compte. Gratuit mais capricieux depuis les runners GitHub
+ *      (répond 200 avec un corps vide). Sert de filet si la clé manque.
+ *
+ * Yahoo Finance a été abandonné : 429 systématique depuis les runners, dont
+ * les adresses IP sont partagées par des milliers de projets.
+ *
+ * L'historique des courbes n'est demandé à personne : chaque exécution ajoute
+ * la clôture du jour à celle des jours précédents. Au bout de quelques
+ * semaines la courbe est complète, et elle ne dépend d'aucun fournisseur.
  *
  * Usage : node scripts/fetch-cours.mjs
  */
@@ -19,22 +25,20 @@ import { readFile, writeFile } from "node:fs/promises";
 
 const TICKERS_FILE = "data/tickers.json";
 const COURS_FILE = "data/cours.json";
+const HISTORIQUE_MAX = 60;
 
 // Surchargeables pour rejouer le script contre des réponses enregistrées.
+const TWELVE = process.env.TWELVE_BASE ?? "https://api.twelvedata.com";
 const STOOQ = process.env.STOOQ_BASE ?? "https://stooq.com/q/d/l/";
 const CHANGE = process.env.CHANGE_BASE ?? "https://api.frankfurter.app";
+const CLE = process.env.TWELVEDATA_KEY ?? "";
 
 const HEADERS = {
   "User-Agent": "BuloJS-Bourse/1.0 (+https://github.com/BuloJS/Bourse)",
-  Accept: "text/csv,*/*",
+  Accept: "application/json,text/csv,*/*",
 };
 
-/**
- * Traduit un ticker « à la Yahoo » — celui que tu saisis dans la page — vers
- * le symbole attendu par Stooq. Sans suffixe, on suppose les États-Unis.
- * Une entrée de data/tickers.json peut aussi imposer son symbole si la
- * correspondance automatique se trompe.
- */
+/** Traduit un ticker « à la Yahoo » vers le symbole attendu par Stooq. */
 const PLACES = {
   ".PA": ".fr", ".AS": ".nl", ".BR": ".be", ".DE": ".de", ".F": ".de",
   ".L": ".uk", ".MI": ".it", ".MC": ".es", ".SW": ".ch", ".ST": ".se",
@@ -43,12 +47,8 @@ const PLACES = {
 function versStooq(ticker) {
   const point = ticker.lastIndexOf(".");
   if (point === -1) return `${ticker.toLowerCase()}.us`;
-
-  const suffixe = ticker.slice(point).toUpperCase();
-  const place = PLACES[suffixe];
-  return place
-    ? ticker.slice(0, point).toLowerCase() + place
-    : ticker.toLowerCase(); // suffixe déjà au format Stooq
+  const place = PLACES[ticker.slice(point).toUpperCase()];
+  return place ? ticker.slice(0, point).toLowerCase() + place : ticker.toLowerCase();
 }
 
 async function lireJson(chemin, defaut) {
@@ -59,89 +59,112 @@ async function lireJson(chemin, defaut) {
   }
 }
 
-function ilYaNJours(n) {
-  const d = new Date(Date.now() - n * 86400000);
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-}
+// --- Fournisseur 1 : Twelve Data (avec clé) --------------------------------
 
-/**
- * Historique quotidien d'un symbole. Stooq renvoie un CSV
- * « Date,Open,High,Low,Close,Volume », le plus ancien en premier.
- */
-async function coursDe(ticker, symbole) {
-  const url =
-    `${STOOQ}?s=${encodeURIComponent(symbole)}&i=d` +
-    `&d1=${ilYaNJours(60)}&d2=${ilYaNJours(0)}`;
-
+async function viaTwelveData(ticker) {
+  const url = `${TWELVE}/quote?symbol=${encodeURIComponent(ticker)}&apikey=${encodeURIComponent(CLE)}`;
   const reponse = await fetch(url, { headers: HEADERS });
   if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
 
-  const texte = (await reponse.text()).trim();
-  // Un symbole inconnu ne renvoie pas une erreur HTTP mais un corps vide.
-  if (!texte || /no data|exceeded/i.test(texte)) throw new Error("symbole inconnu ou quota atteint");
+  const corps = await reponse.json();
+  // Une erreur arrive en 200 avec { status: "error", message: "…" }.
+  if (corps?.status === "error" || corps?.code >= 400) {
+    throw new Error(corps.message || `code ${corps.code}`);
+  }
 
+  const prix = Number(corps.close);
+  if (!Number.isFinite(prix)) throw new Error("aucun cours dans la réponse");
+
+  return {
+    prix,
+    veille: Number(corps.previous_close) || prix,
+    devise: corps.currency || "USD",
+    nom: corps.name || ticker,
+  };
+}
+
+// --- Fournisseur 2 : Stooq (sans compte) -----------------------------------
+
+async function viaStooq(ticker) {
+  const symbole = versStooq(ticker);
+  const reponse = await fetch(`${STOOQ}?s=${encodeURIComponent(symbole)}&i=d`, { headers: HEADERS });
+  if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+
+  const texte = (await reponse.text()).trim();
   const lignes = texte.split("\n").slice(1).filter(Boolean);
   const clotures = lignes
     .map((ligne) => Number(ligne.split(",")[4]))
     .filter((valeur) => Number.isFinite(valeur));
 
   if (!clotures.length) {
-    // Stooq répond parfois 200 avec un corps inutilisable (quota, symbole
-    // inconnu, blocage). On remonte un extrait : sans lui, le journal dit
-    // seulement « rien reçu », ce qui n'aide à rien.
-    throw new Error(`aucune clôture exploitable — reçu : ${JSON.stringify(texte.slice(0, 120))}`);
+    throw new Error(`corps inutilisable : ${JSON.stringify(texte.slice(0, 100))}`);
   }
 
   return {
     prix: clotures.at(-1),
     veille: clotures.at(-2) ?? clotures.at(-1),
-    // Stooq cote chaque place dans sa monnaie locale.
     devise: symbole.endsWith(".us") ? "USD" : "EUR",
     nom: ticker,
-    historique: clotures.slice(-30).map((v) => Math.round(v * 100) / 100),
   };
 }
 
-/** Deux essais : une erreur réseau ponctuelle ne doit pas vider le fichier. */
-async function avecReprise(ticker, symbole) {
-  try {
-    return await coursDe(ticker, symbole);
-  } catch (erreur) {
-    await new Promise((r) => setTimeout(r, 2000));
-    return coursDe(ticker, symbole).catch(() => {
-      throw erreur;
-    });
+/** Essaie les fournisseurs dans l'ordre et remonte toutes les raisons d'échec. */
+async function coursDe(ticker) {
+  const raisons = [];
+
+  if (CLE) {
+    try {
+      return { ...(await viaTwelveData(ticker)), source: "twelvedata" };
+    } catch (erreur) {
+      raisons.push(`twelvedata: ${erreur.message}`);
+    }
+  } else {
+    raisons.push("twelvedata: pas de clé (secret TWELVEDATA_KEY absent)");
   }
+
+  try {
+    return { ...(await viaStooq(ticker)), source: "stooq" };
+  } catch (erreur) {
+    raisons.push(`stooq: ${erreur.message}`);
+  }
+
+  throw new Error(raisons.join(" | "));
 }
 
-const brut = await lireJson(TICKERS_FILE, []);
+// --- Exécution -------------------------------------------------------------
+
+const tickers = await lireJson(TICKERS_FILE, []);
 const precedent = await lireJson(COURS_FILE, { valeurs: {} });
 
-if (!Array.isArray(brut) || !brut.length) {
+if (!Array.isArray(tickers) || !tickers.length) {
   console.error(`${TICKERS_FILE} est vide : rien à récupérer.`);
   process.exit(0);
 }
 
-// Une entrée est soit "MSFT", soit { "ticker": "MSFT", "stooq": "msft.us" }.
-const tickers = brut.map((entree) =>
-  typeof entree === "string"
-    ? { ticker: entree, stooq: versStooq(entree) }
-    : { ticker: entree.ticker, stooq: entree.stooq || versStooq(entree.ticker) }
-);
-
 const valeurs = {};
 const echecs = [];
+const aujourdhui = new Date().toISOString().slice(0, 10);
 
-for (const { ticker, stooq } of tickers) {
+for (const entree of tickers) {
+  const ticker = typeof entree === "string" ? entree : entree.ticker;
+  const ancien = precedent.valeurs?.[ticker];
+
   try {
-    valeurs[ticker] = await avecReprise(ticker, stooq);
-    console.log(`ok    ${ticker.padEnd(10)} ${valeurs[ticker].prix} ${valeurs[ticker].devise}  (${stooq})`);
+    const cours = await coursDe(ticker);
+
+    // L'historique se construit ici, jour après jour : une entrée par date,
+    // la dernière étant remplacée si le script tourne deux fois le même jour.
+    const historique = (ancien?.historique ?? []).filter((point) => point.d !== aujourdhui);
+    historique.push({ d: aujourdhui, c: Math.round(cours.prix * 100) / 100 });
+
+    valeurs[ticker] = { ...cours, historique: historique.slice(-HISTORIQUE_MAX) };
+    console.log(`ok    ${ticker.padEnd(10)} ${cours.prix} ${cours.devise}  (${cours.source})`);
   } catch (erreur) {
     echecs.push(ticker);
-    // On garde la valeur précédente plutôt que de faire disparaître la ligne.
-    if (precedent.valeurs?.[ticker]) valeurs[ticker] = precedent.valeurs[ticker];
-    console.error(`échec ${ticker.padEnd(10)} ${erreur.message}  (${stooq})`);
+    if (ancien) valeurs[ticker] = ancien; // on garde le dernier cours connu
+    console.error(`échec ${ticker.padEnd(10)} ${erreur.message}`);
   }
+
   await new Promise((r) => setTimeout(r, 500));
 }
 
@@ -166,9 +189,11 @@ await writeFile(
 const reussis = tickers.length - echecs.length;
 console.log(`\n${reussis}/${tickers.length} cours récupéré(s) → ${COURS_FILE}`);
 
-// Un échec total doit faire rougir l'action. Sinon elle se termine en vert
-// avec un fichier vide, et le problème passe inaperçu — ce qui est arrivé.
+// Un échec total doit faire rougir l'action, sinon le problème passe inaperçu.
 if (!reussis) {
-  console.error("\nAucun cours récupéré : la source est injoignable ou refuse les requêtes.");
+  console.error(
+    "\nAucun cours récupéré." +
+    (CLE ? "" : "\nAucune clé configurée : ajoute le secret TWELVEDATA_KEY (voir le README).")
+  );
   process.exit(1);
 }

@@ -160,3 +160,4 @@ tr.manquante td { color: #f0b391; text-align: left; font-size: .8rem; }
 #dialogue menu button:hover { filter: brightness(1.12); }
 
 .hint.petit { margin: -.3rem 0 1rem; font-size: .78rem; line-height: 1.45; }
+.attente { color: var(--muted); font-size: .8rem; }

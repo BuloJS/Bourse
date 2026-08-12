@@ -30,6 +30,10 @@ jobs:
 
       - name: Récupérer les cours
         run: node scripts/fetch-cours.mjs
+        env:
+          # Clé du fournisseur de cours. Elle reste dans les secrets du dépôt
+          # et n'apparaît jamais dans les fichiers publiés.
+          TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
 
       - name: Publier si quelque chose a changé
         run: |

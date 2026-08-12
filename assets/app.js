@@ -170,8 +170,15 @@ function dessinerTreemap(lignes) {
 
 // --- Courbe miniature ------------------------------------------------------
 
-function sparkline(points, hausse) {
-  if (points.length < 2) return "";
+function sparkline(historique, hausse) {
+  // L'historique est construit jour après jour par l'action : [{d, c}, …].
+  const points = (historique || [])
+    .map((p) => (typeof p === "number" ? p : Number(p?.c)))
+    .filter(Number.isFinite);
+
+  // Une seule journée connue ne fait pas une courbe : on attend d'en avoir deux.
+  if (points.length < 2) return '<span class="attente">—</span>';
+
   const min = Math.min(...points), max = Math.max(...points);
   const etendue = max - min || 1;
   const d = points

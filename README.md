@@ -9,34 +9,46 @@ variation du jour.
 Accès réservé au compte unique — il faut passer par
 [Home](https://bulojs.github.io/Home/).
 
-## Les cours : à la main, ou automatiques
+## La clé à créer une fois (2 minutes)
 
-**Le plus simple, et le plus robuste : saisir le cours à la main.** Dans
-« modifier » sur une ligne, les champs *Cours actuel* et *Cours de la veille*.
-Une fois remplis, ils l'emportent sur tout le reste. Pour un tableau qu'on
-regarde une ou deux fois par jour, taper deux nombres ne coûte rien — et rien
-d'extérieur ne peut le casser.
+Les cours arrivent tout seuls, mais il faut **une clé gratuite** :
 
-La récupération automatique décrite ci-dessous est un **bonus**. Elle est
-fragile par nature : les sources gratuites sans compte bloquent volontiers les
-adresses IP des serveurs partagés. Si elle ne marche pas, le tableau fonctionne
-quand même.
+1. Crée un compte sur [twelvedata.com](https://twelvedata.com/pricing) — plan
+   *Basic*, gratuit, 800 requêtes par jour (on en utilise une poignée).
+2. Copie la clé d'API.
+3. Dans ce dépôt : **Settings → Secrets and variables → Actions → New
+   repository secret**, nom `TWELVEDATA_KEY`, valeur = ta clé.
 
-## Comment les cours arrivent ici (quand ça marche)
+**La clé reste dans les secrets du dépôt et n'apparaît jamais dans la page**,
+contrairement à un appel fait depuis le navigateur. C'est justement pour ça
+qu'on passe par une action.
+
+Sans cette clé, le script se rabat sur Stooq (sans compte) — mais Stooq bloque
+les serveurs GitHub, donc il ne faut pas compter dessus.
+
+Une saisie manuelle du cours reste possible par ligne (champs *Cours actuel* et
+*Cours de la veille*) : c'est un dépannage si un titre exotique n'est pas
+couvert, pas le mode normal.
+
+## Comment les cours arrivent ici
 
 Il n'existe pas d'API boursière gratuite, sans compte, appelable depuis un
 navigateur : les rares endpoints sans clé refusent les appels venus d'une page
 web (CORS). Le contournement est une **GitHub Action** :
 
 1. Chaque soir de semaine (18h05 UTC), l'action lit `data/tickers.json` ;
-2. elle interroge **Stooq** (cours, en CSV) et **Frankfurter** (taux EUR/USD,
-   données BCE) **côté serveur**, où le CORS ne s'applique pas et où aucune clé
-   n'est requise ;
+2. elle interroge **Twelve Data** pour les cours et **Frankfurter** (données
+   BCE) pour le taux EUR/USD, **côté serveur**, où le CORS ne s'applique pas ;
 3. elle écrit `data/cours.json` et le commite ;
 4. le site lit simplement ce fichier.
 
-Résultat : aucun compte, aucune clé dans la page, aucun coût, et le site reste
-entièrement statique.
+Résultat : aucune clé dans la page, aucun coût, et le site reste entièrement
+statique.
+
+**Les courbes ne sont demandées à personne** : chaque exécution ajoute la
+clôture du jour aux précédentes dans `data/cours.json`. Au bout de quelques
+semaines la courbe est complète, et elle ne dépend d'aucun fournisseur. Les
+premiers jours, la colonne « 30 jours » affiche donc un tiret.
 
 L'action se relance aussi à chaque modification de `data/tickers.json`, et à la
 main depuis l'onglet Actions.

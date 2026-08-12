@@ -1,9 +1,6 @@
 {
-  "maj": "2026-08-12T08:04:20.480Z",
+  "maj": null,
   "taux": {},
-  "echecs": [
-    "GOOGL",
-    "MSFT"
-  ],
+  "echecs": [],
   "valeurs": {}
 }

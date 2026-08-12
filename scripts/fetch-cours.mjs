@@ -2,12 +2,15 @@
  * Récupère les cours et écrit data/cours.json.
  *
  * Tourne dans une GitHub Action, donc côté serveur : pas de CORS à contourner,
- * et aucune clé d'API — l'endpoint « chart » de Yahoo Finance est ouvert. C'est
- * le seul moyen d'avoir des cours gratuits sans compte sur un site statique.
+ * et aucune clé d'API.
  *
- * À savoir : cet endpoint n'est pas officiel. Il est stable depuis des années
- * mais rien ne le garantit ; s'il tombe, les cours précédents sont conservés et
- * le tableau de bord affiche leur date, plutôt que de mentir avec du vide.
+ * Sources :
+ *   - Stooq pour les actions et ETF (CSV, sans compte) ;
+ *   - Frankfurter (données BCE) pour le taux EUR/USD.
+ *
+ * Yahoo Finance a été abandonné : il répond 429 depuis les serveurs GitHub,
+ * dont les adresses IP sont partagées par des milliers de projets et donc
+ * limitées en permanence. Ce n'était pas réparable côté code.
  *
  * Usage : node scripts/fetch-cours.mjs
  */
@@ -17,17 +20,36 @@ import { readFile, writeFile } from "node:fs/promises";
 const TICKERS_FILE = "data/tickers.json";
 const COURS_FILE = "data/cours.json";
 
-// Surchargeable pour rejouer le script contre une réponse enregistrée, sans
-// dépendre du réseau ni du bon vouloir de Yahoo.
-const BASE = process.env.YAHOO_BASE ?? "https://query1.finance.yahoo.com/v8/finance/chart";
+// Surchargeables pour rejouer le script contre des réponses enregistrées.
+const STOOQ = process.env.STOOQ_BASE ?? "https://stooq.com/q/d/l/";
+const CHANGE = process.env.CHANGE_BASE ?? "https://api.frankfurter.app";
 
-// Sans en-tête de navigateur, Yahoo répond 429 ou une page de consentement.
 const HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-  Accept: "application/json",
+  "User-Agent": "BuloJS-Bourse/1.0 (+https://github.com/BuloJS/Bourse)",
+  Accept: "text/csv,*/*",
 };
+
+/**
+ * Traduit un ticker « à la Yahoo » — celui que tu saisis dans la page — vers
+ * le symbole attendu par Stooq. Sans suffixe, on suppose les États-Unis.
+ * Une entrée de data/tickers.json peut aussi imposer son symbole si la
+ * correspondance automatique se trompe.
+ */
+const PLACES = {
+  ".PA": ".fr", ".AS": ".nl", ".BR": ".be", ".DE": ".de", ".F": ".de",
+  ".L": ".uk", ".MI": ".it", ".MC": ".es", ".SW": ".ch", ".ST": ".se",
+};
+
+function versStooq(ticker) {
+  const point = ticker.lastIndexOf(".");
+  if (point === -1) return `${ticker.toLowerCase()}.us`;
+
+  const suffixe = ticker.slice(point).toUpperCase();
+  const place = PLACES[suffixe];
+  return place
+    ? ticker.slice(0, point).toLowerCase() + place
+    : ticker.toLowerCase(); // suffixe déjà au format Stooq
+}
 
 async function lireJson(chemin, defaut) {
   try {
@@ -37,79 +59,98 @@ async function lireJson(chemin, defaut) {
   }
 }
 
-/** Un cours et un mois d'historique pour un symbole. */
-async function coursDe(symbole) {
-  const url = `${BASE}/${encodeURIComponent(symbole)}?interval=1d&range=1mo`;
+function ilYaNJours(n) {
+  const d = new Date(Date.now() - n * 86400000);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Historique quotidien d'un symbole. Stooq renvoie un CSV
+ * « Date,Open,High,Low,Close,Volume », le plus ancien en premier.
+ */
+async function coursDe(ticker, symbole) {
+  const url =
+    `${STOOQ}?s=${encodeURIComponent(symbole)}&i=d` +
+    `&d1=${ilYaNJours(60)}&d2=${ilYaNJours(0)}`;
 
   const reponse = await fetch(url, { headers: HEADERS });
   if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
 
-  const resultat = (await reponse.json())?.chart?.result?.[0];
-  if (!resultat?.meta) throw new Error("réponse inattendue");
+  const texte = (await reponse.text()).trim();
+  // Un symbole inconnu ne renvoie pas une erreur HTTP mais un corps vide.
+  if (!texte || /no data|exceeded/i.test(texte)) throw new Error("symbole inconnu ou quota atteint");
 
-  const meta = resultat.meta;
-  const clotures = (resultat.indicators?.quote?.[0]?.close ?? []).filter(
-    (valeur) => typeof valeur === "number"
-  );
+  const lignes = texte.split("\n").slice(1).filter(Boolean);
+  const clotures = lignes
+    .map((ligne) => Number(ligne.split(",")[4]))
+    .filter((valeur) => Number.isFinite(valeur));
 
-  const prix = meta.regularMarketPrice ?? clotures.at(-1);
-  if (typeof prix !== "number") throw new Error("aucun prix");
+  if (!clotures.length) throw new Error("aucune clôture exploitable");
 
   return {
-    prix,
-    veille: meta.chartPreviousClose ?? meta.previousClose ?? clotures.at(-2) ?? prix,
-    devise: meta.currency ?? "USD",
-    nom: meta.shortName ?? meta.longName ?? symbole,
-    // Historique allégé : de quoi tracer une courbe, pas de quoi faire une base.
-    historique: clotures.slice(-30).map((valeur) => Math.round(valeur * 100) / 100),
+    prix: clotures.at(-1),
+    veille: clotures.at(-2) ?? clotures.at(-1),
+    // Stooq cote chaque place dans sa monnaie locale.
+    devise: symbole.endsWith(".us") ? "USD" : "EUR",
+    nom: ticker,
+    historique: clotures.slice(-30).map((v) => Math.round(v * 100) / 100),
   };
 }
 
 /** Deux essais : une erreur réseau ponctuelle ne doit pas vider le fichier. */
-async function coursAvecReprise(symbole) {
+async function avecReprise(ticker, symbole) {
   try {
-    return await coursDe(symbole);
+    return await coursDe(ticker, symbole);
   } catch (erreur) {
-    await new Promise((resoudre) => setTimeout(resoudre, 1500));
-    return coursDe(symbole).catch(() => {
+    await new Promise((r) => setTimeout(r, 2000));
+    return coursDe(ticker, symbole).catch(() => {
       throw erreur;
     });
   }
 }
 
-const tickers = await lireJson(TICKERS_FILE, []);
+const brut = await lireJson(TICKERS_FILE, []);
 const precedent = await lireJson(COURS_FILE, { valeurs: {} });
 
-if (!Array.isArray(tickers) || !tickers.length) {
+if (!Array.isArray(brut) || !brut.length) {
   console.error(`${TICKERS_FILE} est vide : rien à récupérer.`);
   process.exit(0);
 }
 
+// Une entrée est soit "MSFT", soit { "ticker": "MSFT", "stooq": "msft.us" }.
+const tickers = brut.map((entree) =>
+  typeof entree === "string"
+    ? { ticker: entree, stooq: versStooq(entree) }
+    : { ticker: entree.ticker, stooq: entree.stooq || versStooq(entree.ticker) }
+);
+
 const valeurs = {};
 const echecs = [];
 
-// En série, avec une pause : Yahoo limite les rafales.
-for (const symbole of tickers) {
+for (const { ticker, stooq } of tickers) {
   try {
-    valeurs[symbole] = await coursAvecReprise(symbole);
-    console.log(`ok   ${symbole.padEnd(10)} ${valeurs[symbole].prix} ${valeurs[symbole].devise}`);
+    valeurs[ticker] = await avecReprise(ticker, stooq);
+    console.log(`ok    ${ticker.padEnd(10)} ${valeurs[ticker].prix} ${valeurs[ticker].devise}  (${stooq})`);
   } catch (erreur) {
-    echecs.push(symbole);
+    echecs.push(ticker);
     // On garde la valeur précédente plutôt que de faire disparaître la ligne.
-    if (precedent.valeurs?.[symbole]) valeurs[symbole] = precedent.valeurs[symbole];
-    console.error(`échec ${symbole} : ${erreur.message}`);
+    if (precedent.valeurs?.[ticker]) valeurs[ticker] = precedent.valeurs[ticker];
+    console.error(`échec ${ticker.padEnd(10)} ${erreur.message}  (${stooq})`);
   }
-  await new Promise((resoudre) => setTimeout(resoudre, 400));
+  await new Promise((r) => setTimeout(r, 500));
 }
 
 // Taux de change, pour convertir en euros les lignes cotées en dollars.
 let taux = precedent.taux ?? {};
 try {
-  const change = await coursDe("EURUSD=X");
-  taux = { EURUSD: change.prix };
-  console.log(`ok   EURUSD     ${change.prix}`);
+  const reponse = await fetch(`${CHANGE}/latest?from=EUR&to=USD`, { headers: HEADERS });
+  if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+  const usd = (await reponse.json())?.rates?.USD;
+  if (!Number.isFinite(usd)) throw new Error("réponse inattendue");
+  taux = { EURUSD: usd };
+  console.log(`ok    EURUSD     ${usd}`);
 } catch (erreur) {
-  console.error(`échec EURUSD : ${erreur.message} — ancien taux conservé`);
+  console.error(`échec EURUSD    ${erreur.message} — ancien taux conservé`);
 }
 
 await writeFile(
@@ -117,5 +158,12 @@ await writeFile(
   JSON.stringify({ maj: new Date().toISOString(), taux, echecs, valeurs }, null, 2) + "\n"
 );
 
-console.log(`\n${Object.keys(valeurs).length} valeur(s) écrite(s) dans ${COURS_FILE}`);
-if (echecs.length) console.log(`échecs conservés à l'ancien cours : ${echecs.join(", ")}`);
+const reussis = tickers.length - echecs.length;
+console.log(`\n${reussis}/${tickers.length} cours récupéré(s) → ${COURS_FILE}`);
+
+// Un échec total doit faire rougir l'action. Sinon elle se termine en vert
+// avec un fichier vide, et le problème passe inaperçu — ce qui est arrivé.
+if (!reussis) {
+  console.error("\nAucun cours récupéré : la source est injoignable ou refuse les requêtes.");
+  process.exit(1);
+}

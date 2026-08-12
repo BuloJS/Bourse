@@ -16,8 +16,9 @@ navigateur : les rares endpoints sans clé refusent les appels venus d'une page
 web (CORS). Le contournement est une **GitHub Action** :
 
 1. Chaque soir de semaine (18h05 UTC), l'action lit `data/tickers.json` ;
-2. elle appelle Yahoo Finance **côté serveur**, où le CORS ne s'applique pas et
-   où aucune clé n'est requise ;
+2. elle interroge **Stooq** (cours, en CSV) et **Frankfurter** (taux EUR/USD,
+   données BCE) **côté serveur**, où le CORS ne s'applique pas et où aucune clé
+   n'est requise ;
 3. elle écrit `data/cours.json` et le commite ;
 4. le site lit simplement ce fichier.
 
@@ -27,10 +28,16 @@ entièrement statique.
 L'action se relance aussi à chaque modification de `data/tickers.json`, et à la
 main depuis l'onglet Actions.
 
-> **Cet endpoint Yahoo n'est pas officiel.** Il est stable depuis des années et
-> toléré, mais rien ne le garantit. S'il tombe, les derniers cours connus sont
-> conservés et la date affichée sous « Investi » cesse d'avancer — le tableau
-> ne ment jamais avec des valeurs vides.
+> **Pourquoi pas Yahoo Finance ?** C'était la première tentative : elle répond
+> `429` depuis les serveurs GitHub, dont les adresses IP sont partagées par des
+> milliers de projets et donc limitées en permanence. Le problème n'était pas
+> dans le code — la source était simplement inaccessible depuis là.
+
+Si une source tombe, les derniers cours connus sont conservés et la date
+affichée sous « Investi » cesse d'avancer : le tableau ne montre jamais des
+valeurs vides comme si elles étaient à jour. Et si **plus rien** ne peut être
+récupéré, l'action échoue franchement plutôt que de se terminer en vert avec un
+fichier vide.
 
 ## Ajouter une ligne
 
@@ -42,14 +49,29 @@ Deux choses à faire, dans cet ordre :
 2. **Dans `data/tickers.json`**, ajoute le ticker pour que son cours soit
    récupéré. La page te le rappelle en clair tant que ça n'est pas fait.
 
-Le ticker est celui de Yahoo Finance :
+Le ticker se saisit au format habituel (celui de Yahoo, Boursorama, Google
+Finance) ; le script le traduit tout seul vers le symbole de Stooq :
 
-| Marché | Exemple |
-|---|---|
-| États-Unis | `GOOGL`, `MSFT`, `AAPL` |
-| Paris | `MC.PA` (LVMH), `TTE.PA`, `AI.PA` |
-| Amsterdam | `ASML.AS` |
-| ETF | `CW8.PA`, `ESE.PA` |
+| Marché | Tu écris | Interrogé comme |
+|---|---|---|
+| États-Unis | `MSFT`, `GOOGL` | `msft.us` |
+| Paris | `MC.PA` (LVMH) | `mc.fr` |
+| Amsterdam | `ASML.AS` | `asml.nl` |
+| Francfort | `SAP.DE` | `sap.de` |
+| Londres | `SHEL.L` | `shel.uk` |
+
+Si la traduction se trompe — la couverture de Stooq hors États-Unis est
+inégale — impose le symbole à la main :
+
+```json
+[
+  "MSFT",
+  { "ticker": "MC.PA", "stooq": "mc.fr" }
+]
+```
+
+La colonne « échecs » de `data/cours.json` et le journal de l'action te disent
+exactement quel symbole n'a rien renvoyé.
 
 ## Ce qui est public, ce qui ne l'est pas
 

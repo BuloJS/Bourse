@@ -26,13 +26,24 @@ les adresses IP de GitHub. Une petite fonction hébergée par **Supabase**
 l'interroge depuis une autre infrastructure, et la page l'appelle avec le
 jeton de ta session — donc elle ne répond qu'à toi.
 
-**Déploiement** (une fois, 5 minutes) :
+**Déploiement — le plus simple, depuis GitHub** (une fois) :
 
-1. Supabase → ton projet → **Edge Functions** → *Deploy a new function*
-2. Nom : `cours`
-3. Colle le contenu de
-   [`supabase/functions/cours/index.ts`](supabase/functions/cours/index.ts)
-4. Déploie.
+1. [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+   → *Generate new token*
+2. Ce dépôt → Settings → Secrets and variables → Actions → New repository
+   secret, nom `SUPABASE_ACCESS_TOKEN`
+3. Onglet Actions → **Déployer la fonction cours** → *Run workflow*
+
+Rien à installer : l'action déploie le fichier du dépôt.
+
+**Ou depuis le tableau de bord Supabase**, s'il propose l'éditeur : barre
+latérale → **Edge Functions** (section *Build*) → *Deploy a new function* →
+*Via Editor*, nom `cours`, puis colle le contenu de
+[`supabase/functions/cours/index.ts`](supabase/functions/cours/index.ts).
+
+> Attention à ne pas confondre avec **Database → Functions** : celles-là sont
+> des fonctions SQL, avec les champs « Function » et « Definition ». Ce n'est
+> pas la même chose.
 
 Les symboles sont ceux de Yahoo :
 

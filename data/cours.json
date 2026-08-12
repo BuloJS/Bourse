@@ -1,6 +1,35 @@
 {
-  "maj": null,
-  "taux": {},
+  "maj": "2026-08-12T08:43:50.820Z",
+  "taux": {
+    "EURUSD": 1.154
+  },
   "echecs": [],
-  "valeurs": {}
+  "valeurs": {
+    "GOOGL": {
+      "prix": 343.79999,
+      "veille": 357.51999,
+      "devise": "USD",
+      "nom": "Alphabet Inc.",
+      "source": "twelvedata",
+      "historique": [
+        {
+          "d": "2026-08-12",
+          "c": 343.8
+        }
+      ]
+    },
+    "MSFT": {
+      "prix": 503.81,
+      "veille": 506.059998,
+      "devise": "USD",
+      "nom": "Microsoft Corporation",
+      "source": "twelvedata",
+      "historique": [
+        {
+          "d": "2026-08-12",
+          "c": 503.81
+        }
+      ]
+    }
+  }
 }

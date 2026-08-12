@@ -36,8 +36,15 @@ function enEuros(montant, devise) {
 /** Enrichit chaque position de sa valorisation et de ses performances. */
 function calculer() {
   return positions.map((p) => {
-    const valeur = cours.valeurs[p.ticker];
-    if (!valeur) return { ...p, manquant: true, valo: 0, pv: 0, pvPct: 0, jour: 0 };
+    // Un cours saisi à la main prime sur le cours récupéré : c'est le filet
+    // quand la source automatique ne répond pas, et le mode de fonctionnement
+    // principal si tu préfères ne dépendre de personne.
+    const manuel = Number(p.cours) > 0;
+    const valeur = manuel
+      ? { prix: Number(p.cours), veille: Number(p.veille) || Number(p.cours), devise: "EUR", nom: p.nom, historique: [] }
+      : cours.valeurs[p.ticker];
+
+    if (!valeur) return { ...p, manquant: true, manuel: false, valo: 0, pv: 0, pvPct: 0, jour: 0 };
 
     const valo = enEuros(valeur.prix * p.qte, valeur.devise);
     const investi = p.pru * p.qte; // le prix de revient est saisi en euros
@@ -46,6 +53,7 @@ function calculer() {
     return {
       ...p,
       manquant: false,
+      manuel,
       nom: p.nom || valeur.nom || p.ticker,
       prix: valeur.prix,
       devise: valeur.devise,
@@ -212,10 +220,10 @@ function rendre() {
     .sort((a, b) => b.valo - a.valo)
     .map((l, i) => l.manquant
       ? `<tr class="manquante"><td class="nom">${l.ticker}</td>
-           <td colspan="3">cours indisponible — ajoute <code>"${l.ticker}"</code> à data/tickers.json</td>
+           <td colspan="3">aucun cours — saisis-le à la main, ou ajoute <code>"${l.ticker}"</code> à data/tickers.json</td>
            <td><button class="lien" data-edit="${positions.indexOf(positions.find(p => p.ticker === l.ticker))}">modifier</button></td></tr>`
       : `<tr>
-           <td class="nom">${l.nom}<span class="tick">${l.ticker}</span></td>
+           <td class="nom">${l.nom}<span class="tick">${l.ticker}${l.manuel ? " · cours saisi" : ""}</span></td>
            <td>${sparkline(l.historique, l.pvPct >= 0)}</td>
            <td>${euros.format(l.valo)}</td>
            <td class="${l.pvPct >= 0 ? "pos" : "neg"}">${pourcent(l.pvPct)}</td>
@@ -227,9 +235,11 @@ function rendre() {
   $("alerte").hidden = !absents.length;
   if (absents.length) {
     $("alerte").innerHTML =
-      `<strong>${absents.length} ligne(s) sans cours.</strong> Ajoute ` +
-      absents.map((t) => `<code>"${t}"</code>`).join(", ") +
-      ` à <code>data/tickers.json</code> : l'action se relance toute seule au prochain envoi.`;
+      `<strong>${absents.length} ligne(s) sans cours :</strong> ` +
+      absents.map((t) => `<code>${t}</code>`).join(", ") +
+      `. Le plus simple est de saisir le cours à la main dans la ligne — ` +
+      `« modifier », champ <em>Cours actuel</em>. La récupération automatique ` +
+      `reste un bonus, elle n'est pas nécessaire.`;
   }
 }
 
@@ -244,6 +254,8 @@ function ouvrirForm(rang) {
   $("f-nom").value = p?.nom ?? "";
   $("f-qte").value = p?.qte ?? "";
   $("f-pru").value = p?.pru ?? "";
+  $("f-cours").value = p?.cours ?? "";
+  $("f-veille").value = p?.veille ?? "";
   $("f-supprimer").hidden = rangEdite === null;
   $("form-msg").textContent = "";
   $("dialogue").showModal();
@@ -271,6 +283,12 @@ $("form-position").addEventListener("submit", (event) => {
   };
   if (!entree.ticker) return;
   if (!entree.nom) delete entree.nom;
+
+  // Cours saisis à la main : facultatifs, on ne les garde que s'ils existent.
+  const cours = Number($("f-cours").value.replace(",", "."));
+  const veille = Number($("f-veille").value.replace(",", "."));
+  if (cours > 0) entree.cours = cours;
+  if (veille > 0) entree.veille = veille;
 
   if (rangEdite === null) positions = [...positions, entree];
   else positions = positions.map((p, i) => (i === rangEdite ? entree : p));

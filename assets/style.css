@@ -158,3 +158,5 @@ tr.manquante td { color: #f0b391; text-align: left; font-size: .8rem; }
 #dialogue menu .primaire { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
 #dialogue menu .danger { border-color: #e66767; color: #f08c8c; }
 #dialogue menu button:hover { filter: brightness(1.12); }
+
+.hint.petit { margin: -.3rem 0 1rem; font-size: .78rem; line-height: 1.45; }

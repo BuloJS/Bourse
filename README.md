@@ -9,7 +9,20 @@ variation du jour.
 Accès réservé au compte unique — il faut passer par
 [Home](https://bulojs.github.io/Home/).
 
-## Comment les cours arrivent ici
+## Les cours : à la main, ou automatiques
+
+**Le plus simple, et le plus robuste : saisir le cours à la main.** Dans
+« modifier » sur une ligne, les champs *Cours actuel* et *Cours de la veille*.
+Une fois remplis, ils l'emportent sur tout le reste. Pour un tableau qu'on
+regarde une ou deux fois par jour, taper deux nombres ne coûte rien — et rien
+d'extérieur ne peut le casser.
+
+La récupération automatique décrite ci-dessous est un **bonus**. Elle est
+fragile par nature : les sources gratuites sans compte bloquent volontiers les
+adresses IP des serveurs partagés. Si elle ne marche pas, le tableau fonctionne
+quand même.
+
+## Comment les cours arrivent ici (quand ça marche)
 
 Il n'existe pas d'API boursière gratuite, sans compte, appelable depuis un
 navigateur : les rares endpoints sans clé refusent les appels venus d'une page
@@ -28,10 +41,17 @@ entièrement statique.
 L'action se relance aussi à chaque modification de `data/tickers.json`, et à la
 main depuis l'onglet Actions.
 
-> **Pourquoi pas Yahoo Finance ?** C'était la première tentative : elle répond
-> `429` depuis les serveurs GitHub, dont les adresses IP sont partagées par des
-> milliers de projets et donc limitées en permanence. Le problème n'était pas
-> dans le code — la source était simplement inaccessible depuis là.
+> **État réel des sources, mesuré depuis les serveurs GitHub :**
+>
+> | Source | Résultat |
+> |---|---|
+> | Yahoo Finance | `HTTP 429` — adresses IP des runners limitées en permanence |
+> | Stooq | `HTTP 200` mais CSV vide — même cause probable |
+> | Frankfurter (taux de change) | ✅ fonctionne |
+>
+> Autrement dit : le taux EUR/USD est récupéré sans problème, les cours
+> d'actions non. C'est pour ça que la saisie manuelle est la voie principale et
+> non un dépannage.
 
 Si une source tombe, les derniers cours connus sont conservés et la date
 affichée sous « Investi » cesse d'avancer : le tableau ne montre jamais des

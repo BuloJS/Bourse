@@ -85,7 +85,12 @@ async function coursDe(ticker, symbole) {
     .map((ligne) => Number(ligne.split(",")[4]))
     .filter((valeur) => Number.isFinite(valeur));
 
-  if (!clotures.length) throw new Error("aucune clôture exploitable");
+  if (!clotures.length) {
+    // Stooq répond parfois 200 avec un corps inutilisable (quota, symbole
+    // inconnu, blocage). On remonte un extrait : sans lui, le journal dit
+    // seulement « rien reçu », ce qui n'aide à rien.
+    throw new Error(`aucune clôture exploitable — reçu : ${JSON.stringify(texte.slice(0, 120))}`);
+  }
 
   return {
     prix: clotures.at(-1),

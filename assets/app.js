@@ -242,12 +242,21 @@ function rendre() {
   const absents = lignes.filter((l) => l.manquant).map((l) => l.ticker);
   $("alerte").hidden = !absents.length;
   if (absents.length) {
+    // La source remonte une raison par symbole : « ACA: HTTP 404 ». La montrer
+    // évite de deviner entre un symbole mal orthographié et une source en
+    // panne — c'est presque toujours le symbole.
+    const raisons = (cours.echecs ?? [])
+      .map((e) => (typeof e === "string" ? e : String(e)))
+      .filter((e) => absents.some((t) => e.startsWith(t)));
+
     $("alerte").innerHTML =
       `<strong>${absents.length} ligne(s) sans cours :</strong> ` +
       absents.map((t) => `<code>${t}</code>`).join(", ") +
-      `. Le plus simple est de saisir le cours à la main dans la ligne — ` +
-      `« modifier », champ <em>Cours actuel</em>. La récupération automatique ` +
-      `reste un bonus, elle n'est pas nécessaire.`;
+      (raisons.length ? `<br><small>${raisons.join(" · ")}</small>` : "") +
+      `<br><small>Vérifie le symbole — il doit être celui de Yahoo, avec sa place : ` +
+      `<code>ACA.PA</code>, <code>HO.PA</code>, <code>EWLD.PA</code>, ` +
+      `<code>ABEA.DE</code>, <code>XDUS.DE</code>, <code>MSFT</code>. ` +
+      `Sinon, saisis le cours à la main dans « modifier ».</small>`;
   }
 }
 

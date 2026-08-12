@@ -92,15 +92,30 @@ Finance) ; le script le traduit tout seul vers le symbole de Stooq :
 | Francfort | `SAP.DE` | `sap.de` |
 | Londres | `SHEL.L` | `shel.uk` |
 
-Si la traduction se trompe — la couverture de Stooq hors États-Unis est
-inégale — impose le symbole à la main :
+**Hors États-Unis, précise la place de cotation.** Un ticker européen nu est
+ambigu : `ACA` ou `HO` existent sur plusieurs marchés, et le fournisseur répond
+alors « symbol not found ». Le code MIC lève l'ambiguïté :
 
 ```json
 [
   "MSFT",
-  { "ticker": "MC.PA", "stooq": "mc.fr" }
+  { "ticker": "ACA",  "mic": "XPAR" },
+  { "ticker": "ABEA", "mic": "XETR" }
 ]
 ```
+
+| Place | MIC |
+|---|---|
+| Euronext Paris | `XPAR` |
+| Euronext Amsterdam | `XAMS` |
+| Xetra (Francfort) | `XETR` |
+| Borsa Italiana | `XMIL` |
+| London Stock Exchange | `XLON` |
+| Bolsa de Madrid | `XMAD` |
+
+Champs acceptés : `mic`, `exchange` (nom de la place), `country`, et `stooq`
+pour forcer le symbole du fournisseur de repli. `note` sert juste à te
+rappeler de quoi il s'agit.
 
 La colonne « échecs » de `data/cours.json` et le journal de l'action te disent
 exactement quel symbole n'a rien renvoyé.

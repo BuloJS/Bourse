@@ -61,9 +61,16 @@ async function lireJson(chemin, defaut) {
 
 // --- Fournisseur 1 : Twelve Data (avec clé) --------------------------------
 
-async function viaTwelveData(ticker) {
-  const url = `${TWELVE}/quote?symbol=${encodeURIComponent(ticker)}&apikey=${encodeURIComponent(CLE)}`;
-  const reponse = await fetch(url, { headers: HEADERS });
+async function viaTwelveData({ ticker, mic, exchange, country }) {
+  // Un ticker européen nu est ambigu : « ACA » ou « HO » existent sur
+  // plusieurs places. Le code MIC (XPAR pour Euronext Paris, XETR pour Xetra)
+  // lève l'ambiguïté sans dépendre de l'orthographe du nom de la place.
+  const params = new URLSearchParams({ symbol: ticker, apikey: CLE });
+  if (mic) params.set("mic_code", mic);
+  if (exchange) params.set("exchange", exchange);
+  if (country) params.set("country", country);
+
+  const reponse = await fetch(`${TWELVE}/quote?${params}`, { headers: HEADERS });
   if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
 
   const corps = await reponse.json();
@@ -109,12 +116,12 @@ async function viaStooq(ticker) {
 }
 
 /** Essaie les fournisseurs dans l'ordre et remonte toutes les raisons d'échec. */
-async function coursDe(ticker) {
+async function coursDe(entree) {
   const raisons = [];
 
   if (CLE) {
     try {
-      return { ...(await viaTwelveData(ticker)), source: "twelvedata" };
+      return { ...(await viaTwelveData(entree)), source: "twelvedata" };
     } catch (erreur) {
       raisons.push(`twelvedata: ${erreur.message}`);
     }
@@ -123,7 +130,7 @@ async function coursDe(ticker) {
   }
 
   try {
-    return { ...(await viaStooq(ticker)), source: "stooq" };
+    return { ...(await viaStooq(entree.stooq || entree.ticker)), source: "stooq" };
   } catch (erreur) {
     raisons.push(`stooq: ${erreur.message}`);
   }
@@ -145,12 +152,14 @@ const valeurs = {};
 const echecs = [];
 const aujourdhui = new Date().toISOString().slice(0, 10);
 
-for (const entree of tickers) {
-  const ticker = typeof entree === "string" ? entree : entree.ticker;
+for (const brut of tickers) {
+  // Une entrée est soit "MSFT", soit { ticker, mic, exchange, country, stooq }.
+  const entree = typeof brut === "string" ? { ticker: brut } : brut;
+  const { ticker } = entree;
   const ancien = precedent.valeurs?.[ticker];
 
   try {
-    const cours = await coursDe(ticker);
+    const cours = await coursDe(entree);
 
     // L'historique se construit ici, jour après jour : une entrée par date,
     // la dernière étant remplacée si le script tourne deux fois le même jour.

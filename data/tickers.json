@@ -1,4 +1,9 @@
 [
-  "EWLD",
-  "ACA"
+  "GOOGL",
+  "MSFT",
+  { "ticker": "ACA",  "mic": "XPAR", "note": "Crédit Agricole — Euronext Paris" },
+  { "ticker": "HO",   "mic": "XPAR", "note": "Thales — Euronext Paris" },
+  { "ticker": "EWLD", "mic": "XPAR", "note": "Amundi MSCI World UCITS ETF — Euronext Paris" },
+  { "ticker": "ABEA", "mic": "XETR", "note": "Alphabet A — Xetra" },
+  { "ticker": "XDUS", "mic": "XETR", "note": "Xtrackers MSCI USA — Xetra" }
 ]

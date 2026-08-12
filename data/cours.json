@@ -1,7 +1,7 @@
 {
-  "maj": "2026-08-12T08:58:01.300Z",
+  "maj": "2026-08-12T19:01:48.335Z",
   "taux": {
-    "EURUSD": 1.154
+    "EURUSD": 1.1545
   },
   "echecs": [
     "ACA",
@@ -12,28 +12,28 @@
   ],
   "valeurs": {
     "GOOGL": {
-      "prix": 343.79999,
-      "veille": 357.51999,
+      "prix": 344.06,
+      "veille": 343.79999,
       "devise": "USD",
       "nom": "Alphabet Inc.",
       "source": "twelvedata",
       "historique": [
         {
           "d": "2026-08-12",
-          "c": 343.8
+          "c": 344.06
         }
       ]
     },
     "MSFT": {
-      "prix": 503.81,
-      "veille": 506.059998,
+      "prix": 493.48,
+      "veille": 503.81,
       "devise": "USD",
       "nom": "Microsoft Corporation",
       "source": "twelvedata",
       "historique": [
         {
           "d": "2026-08-12",
-          "c": 503.81
+          "c": 493.48
         }
       ]
     },

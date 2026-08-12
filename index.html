@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bourse — mes positions</title>
+<meta name="description" content="Suivi visuel de mes positions en bourse.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+
+<!-- Accès réservé au compte unique : masque la page, puis vérifie la session -->
+<script>document.documentElement.style.visibility = "hidden";</script>
+<script type="module" src="assets/guard.js"></script>
+
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Bourse</h1>
+  <button class="btn" type="button" id="btn-ajouter">+ Ajouter une ligne</button>
+</header>
+
+<main>
+
+  <div id="alerte" class="alerte" hidden></div>
+
+  <section id="vide" class="vide" hidden>
+    <p class="grand">Aucune ligne pour l'instant</p>
+    <p class="hint">
+      Ajoute une position — le ticker, la quantité et ton prix de revient.
+      Les cours sont récupérés chaque soir automatiquement.
+    </p>
+    <button class="btn" type="button" id="btn-ajouter-vide">Ajouter ma première ligne</button>
+  </section>
+
+  <div id="hero" class="hero" hidden>
+    <div class="stat">
+      <div class="k">Valorisation</div>
+      <div class="v" id="valo">—</div>
+      <div class="s" id="valo-jour">—</div>
+    </div>
+    <div class="stat">
+      <div class="k">Plus-value latente</div>
+      <div class="v" id="pv">—</div>
+      <div class="s" id="pv-pct">—</div>
+    </div>
+    <div class="stat">
+      <div class="k">Investi</div>
+      <div class="v" id="investi">—</div>
+      <div class="s muted" id="investi-sub">—</div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <section class="panel">
+      <h2>Répartition des lignes</h2>
+      <p class="sub">Surface = poids dans le portefeuille · couleur = variation du jour</p>
+      <div id="map"></div>
+      <div class="legende">
+        <span>−1,5 %</span>
+        <span class="echelle">
+          <i class="v-dn3"></i><i class="v-dn2"></i><i class="v-dn1"></i>
+          <i class="v-flat"></i>
+          <i class="v-up1"></i><i class="v-up2"></i><i class="v-up3"></i>
+        </span>
+        <span>+1,5 %</span>
+        <span class="apart">Le pourcentage est écrit sur chaque case</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Mes lignes</h2>
+      <p class="sub">Triées par valorisation</p>
+      <table>
+        <thead>
+          <tr><th>Ligne</th><th>30 jours</th><th>Valeur</th><th>P/V</th><th></th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+  </div>
+
+</main>
+
+<dialog id="dialogue">
+  <form id="form-position">
+    <h3 id="form-titre">Nouvelle ligne</h3>
+    <p class="hint">
+      Le ticker est celui de Yahoo Finance : <code>GOOGL</code>, <code>MSFT</code>,
+      <code>MC.PA</code> pour LVMH, <code>ASML.AS</code>.
+    </p>
+
+    <label for="f-ticker">Ticker</label>
+    <input id="f-ticker" type="text" required autocomplete="off" placeholder="MSFT">
+
+    <label for="f-nom">Nom affiché (facultatif)</label>
+    <input id="f-nom" type="text" autocomplete="off" placeholder="Microsoft">
+
+    <div class="deux">
+      <div>
+        <label for="f-qte">Quantité</label>
+        <input id="f-qte" type="text" inputmode="decimal" required placeholder="12">
+      </div>
+      <div>
+        <label for="f-pru">Prix de revient unitaire (€)</label>
+        <input id="f-pru" type="text" inputmode="decimal" required placeholder="310,50">
+      </div>
+    </div>
+
+    <p id="form-msg" class="msg"></p>
+
+    <menu>
+      <button type="button" class="danger" id="f-supprimer" hidden>Supprimer</button>
+      <span class="espace"></span>
+      <button type="button" id="f-annuler">Annuler</button>
+      <button type="submit" class="primaire">Enregistrer</button>
+    </menu>
+  </form>
+</dialog>
+
+<script type="module" src="assets/app.js"></script>
+
+</body>
+</html>

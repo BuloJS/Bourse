@@ -1,0 +1,44 @@
+name: Cours du jour
+
+on:
+  schedule:
+    # 18h05 UTC en semaine, soit après la clôture européenne. Les marchés
+    # américains ferment plus tard : le cours américain est donc celui de la
+    # veille au soir jusqu'au lendemain, ce qui suffit pour un suivi perso.
+    - cron: "5 18 * * 1-5"
+  push:
+    paths:
+      - "data/tickers.json"   # une ligne ajoutée est cotée tout de suite
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cours
+  cancel-in-progress: true
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Récupérer les cours
+        run: node scripts/fetch-cours.mjs
+
+      - name: Publier si quelque chose a changé
+        run: |
+          if git diff --quiet -- data/cours.json; then
+            echo "Aucun changement de cours."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cours.json
+          git commit -m "Cours du $(date -u +%d/%m/%Y)"
+          git push

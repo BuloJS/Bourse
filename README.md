@@ -9,7 +9,46 @@ variation du jour.
 Accès réservé au compte unique — il faut passer par
 [Home](https://bulojs.github.io/Home/).
 
-## La clé à créer une fois (2 minutes)
+## La fonction « cours » — à déployer une fois
+
+C'est la voie principale, et la seule qui couvre les marchés européens.
+
+**Pourquoi.** Aucune source gratuite ne convient telle quelle :
+
+| Source | Depuis un navigateur | Depuis GitHub Actions | Europe |
+|---|---|---|---|
+| Yahoo Finance | bloqué (CORS) | `429`, IP partagées | ✅ complète |
+| Stooq | bloqué (CORS) | page de blocage | — |
+| Twelve Data | clé exposée | ✅ | ❌ `404`, plan gratuit = États-Unis |
+
+Yahoo a la meilleure couverture et ne demande aucune clé : il ne refusait que
+les adresses IP de GitHub. Une petite fonction hébergée par **Supabase**
+l'interroge depuis une autre infrastructure, et la page l'appelle avec le
+jeton de ta session — donc elle ne répond qu'à toi.
+
+**Déploiement** (une fois, 5 minutes) :
+
+1. Supabase → ton projet → **Edge Functions** → *Deploy a new function*
+2. Nom : `cours`
+3. Colle le contenu de
+   [`supabase/functions/cours/index.ts`](supabase/functions/cours/index.ts)
+4. Déploie.
+
+Les symboles sont ceux de Yahoo :
+
+| Titre | Symbole |
+|---|---|
+| Crédit Agricole | `ACA.PA` |
+| Thales | `HO.PA` |
+| Amundi MSCI World | `EWLD.PA` |
+| Alphabet (Xetra) | `ABEA.DE` |
+| Xtrackers MSCI USA (Xetra) | `XDUS.DE` |
+| Microsoft, Alphabet (US) | `MSFT`, `GOOGL` |
+
+Une fois la fonction déployée, **`data/tickers.json` ne sert plus** : les cours
+sont demandés pour les lignes que tu détiens, sans liste à tenir à jour à côté.
+
+## La clé Twelve Data — secours pour les titres américains
 
 Les cours arrivent tout seuls, mais il faut **une clé gratuite** :
 

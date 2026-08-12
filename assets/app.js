@@ -10,6 +10,7 @@
  */
 
 import { chargerPositions, enregistrerPositions } from "./store.js";
+import { coursEnDirect, coursDuDepot } from "./cours.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -327,16 +328,36 @@ window.addEventListener("resize", () => dessinerTreemap(calculer()));
 
 (async () => {
   try {
-    cours = await (await fetch("data/cours.json", { cache: "no-cache" })).json();
-  } catch {
-    // Fichier absent au premier déploiement : on affiche quand même les lignes.
-  }
-  try {
     positions = await chargerPositions();
   } catch (erreur) {
     $("alerte").hidden = false;
     $("alerte").textContent = `Positions illisibles : ${erreur.message}`;
   }
+
+  // Les cours sont demandés pour les lignes réellement détenues : pas de liste
+  // de tickers à tenir à jour à côté.
+  const symboles = [...new Set(positions.map((p) => p.ticker).filter(Boolean))];
+  let raisonDirect = null;
+
+  try {
+    cours = await coursEnDirect(symboles);
+  } catch (erreur) {
+    raisonDirect = erreur.message;
+    try {
+      cours = await coursDuDepot();
+    } catch {
+      // Ni fonction, ni fichier : les lignes s'affichent sans valorisation.
+    }
+  }
+
   rendre();
+
+  // Le repli est silencieux pour les lignes qui ont un cours ; on ne le
+  // signale que s'il en manque, avec la raison.
+  if (raisonDirect && !$("alerte").hidden) {
+    $("alerte").innerHTML += `<br><small>Cours en direct indisponibles (${raisonDirect}) — ` +
+      `repli sur les cours du dépôt.</small>`;
+  }
+
   document.body.dataset.pret = "1";
 })();

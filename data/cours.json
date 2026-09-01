@@ -1,19 +1,13 @@
 {
-  "maj": "2026-08-31T22:32:26.992Z",
+  "maj": "2026-09-01T17:42:23.445Z",
   "taux": {
-    "EURUSD": 1.1596
+    "EURUSD": 1.159
   },
-  "echecs": [
-    "ACA",
-    "HO",
-    "EWLD",
-    "ABEA",
-    "XDUS"
-  ],
+  "echecs": [],
   "valeurs": {
     "GOOGL": {
-      "prix": 339.28,
-      "veille": 346.59,
+      "prix": 335.33,
+      "veille": 339.35001,
       "devise": "USD",
       "nom": "Alphabet Inc. Class A Common Stock",
       "source": "twelvedata",
@@ -73,12 +67,16 @@
         {
           "d": "2026-08-31",
           "c": 339.28
+        },
+        {
+          "d": "2026-09-01",
+          "c": 335.33
         }
       ]
     },
     "MSFT": {
-      "prix": 507.32001,
-      "veille": 513.53003,
+      "prix": 501.12,
+      "veille": 507.29001,
       "devise": "USD",
       "nom": "Microsoft Corporation Common Stock",
       "source": "twelvedata",
@@ -138,19 +136,10 @@
         {
           "d": "2026-08-31",
           "c": 507.32
-        }
-      ]
-    },
-    "ACA": {
-      "prix": 144.91,
-      "veille": 144.73,
-      "devise": "USD",
-      "nom": "Arcosa Inc.",
-      "source": "twelvedata",
-      "historique": [
+        },
         {
-          "d": "2026-08-12",
-          "c": 144.91
+          "d": "2026-09-01",
+          "c": 501.12
         }
       ]
     }

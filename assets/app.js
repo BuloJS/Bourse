@@ -51,11 +51,25 @@ function calculer() {
     const investi = p.pru * p.qte; // le prix de revient est saisi en euros
     const jour = valeur.veille ? ((valeur.prix - valeur.veille) / valeur.veille) * 100 : 0;
 
-    // Dividende attendu : une estimation basée sur le dernier montant annuel
+    // Dividende par action : une valeur saisie à la main prime sur celle
+    // récupérée automatiquement — utile pour un ETF capitalisant (pas de
+    // dividende à trouver) ou un titre où la source ne fournit rien. Elle est
+    // saisie directement en euros, donc aucune conversion à faire dessus.
+    // L'automatique reste une estimation basée sur le dernier montant annuel
     // déclaré (Yahoo : trailingAnnualDividendRate), pas une prévision 2026
-    // officielle. Absent pour un titre saisi à la main ou qui n'en verse pas.
+    // officielle.
+    const dividendeManuel = Number(p.dividende) > 0 ? Number(p.dividende) : null;
     const dividende = valeur.dividende;
-    const dividendeAnnuel = dividende ? enEuros(dividende.parAction * p.qte, valeur.devise) : 0;
+
+    let dividendeAnnuel = 0;
+    let rendement = null;
+    if (dividendeManuel !== null) {
+      dividendeAnnuel = dividendeManuel * p.qte;
+      rendement = valo ? (dividendeAnnuel / valo) * 100 : null;
+    } else if (dividende) {
+      dividendeAnnuel = enEuros(dividende.parAction * p.qte, valeur.devise);
+      rendement = dividende.rendement ?? null;
+    }
 
     return {
       ...p,
@@ -71,7 +85,8 @@ function calculer() {
       pvPct: investi ? ((valo - investi) / investi) * 100 : 0,
       jour,
       dividendeAnnuel,
-      rendement: dividende?.rendement ?? null,
+      rendement,
+      dividendeManuel: dividendeManuel !== null,
     };
   });
 }
@@ -258,7 +273,9 @@ function rendre() {
            <td>${euros.format(l.valo)}</td>
            <td class="${l.pvPct >= 0 ? "pos" : "neg"}">${pourcent(l.pvPct)}</td>
            <td>${l.dividendeAnnuel > 0
-             ? `${euros.format(l.dividendeAnnuel)}<span class="tick">${l.rendement != null ? pourcent(l.rendement).replace("+", "") : ""}</span>`
+             ? `${euros.format(l.dividendeAnnuel)}<span class="tick">${
+                 l.dividendeManuel ? "saisi" : (l.rendement != null ? pourcent(l.rendement).replace("+", "") : "")
+               }</span>`
              : '<span class="attente">—</span>'}</td>
            <td><button class="lien" data-edit="${positions.indexOf(positions.find(p => p.ticker === l.ticker))}">modifier</button></td>
          </tr>`)
@@ -298,6 +315,7 @@ function ouvrirForm(rang) {
   $("f-pru").value = p?.pru ?? "";
   $("f-cours").value = p?.cours ?? "";
   $("f-veille").value = p?.veille ?? "";
+  $("f-dividende").value = p?.dividende ?? "";
   $("f-supprimer").hidden = rangEdite === null;
   $("form-msg").textContent = "";
   $("dialogue").showModal();
@@ -331,6 +349,9 @@ $("form-position").addEventListener("submit", (event) => {
   const veille = Number($("f-veille").value.replace(",", "."));
   if (cours > 0) entree.cours = cours;
   if (veille > 0) entree.veille = veille;
+
+  const dividende = Number($("f-dividende").value.replace(",", "."));
+  if (dividende > 0) entree.dividende = dividende;
 
   if (rangEdite === null) positions = [...positions, entree];
   else positions = positions.map((p, i) => (i === rangEdite ? entree : p));

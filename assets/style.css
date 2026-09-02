@@ -73,12 +73,14 @@ main { max-width: 1180px; margin: 0 auto; }
 .pos { color: #7fb4f0; } .neg { color: #f08c8c; } .muted { color: var(--muted); }
 
 /* --- Panneaux --- */
-/* minmax(0, …) plutôt que 1.85fr/1fr nus : par défaut, une colonne de grille
-   ne rétrécit jamais en dessous du contenu qu'elle porte (min-width: auto).
-   Sans ce minmax, un tableau qui s'élargit (ex. une colonne ajoutée) pousse
-   la grille à réduire le panneau voisin — ici celui de la treemap — après
-   que ses cases ont déjà été calculées en pixels, d'où le débordement. */
-.cols { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+/* Le panneau du tableau se dimensionne sur son propre contenu (auto) plutôt
+   que sur un ratio figé : il prend exactement ce qu'il lui faut, sans place
+   perdue et sans être bridé quand une colonne s'ajoute. La treemap (1fr,
+   plancher 0) récupère tout le reste. Le plancher à 0 reste nécessaire :
+   sans lui, min-width: auto (comportement par défaut de CSS Grid) empêche
+   la treemap de rétrécir sous le contenu du tableau, qui déborderait alors
+   sur son panneau au lieu d'y défiler proprement. */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.2rem; align-items: start; }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 
 .panel { padding: 1.2rem; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }

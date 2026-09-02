@@ -51,6 +51,12 @@ function calculer() {
     const investi = p.pru * p.qte; // le prix de revient est saisi en euros
     const jour = valeur.veille ? ((valeur.prix - valeur.veille) / valeur.veille) * 100 : 0;
 
+    // Dividende attendu : une estimation basée sur le dernier montant annuel
+    // déclaré (Yahoo : trailingAnnualDividendRate), pas une prévision 2026
+    // officielle. Absent pour un titre saisi à la main ou qui n'en verse pas.
+    const dividende = valeur.dividende;
+    const dividendeAnnuel = dividende ? enEuros(dividende.parAction * p.qte, valeur.devise) : 0;
+
     return {
       ...p,
       manquant: false,
@@ -64,6 +70,8 @@ function calculer() {
       pv: valo - investi,
       pvPct: investi ? ((valo - investi) / investi) * 100 : 0,
       jour,
+      dividendeAnnuel,
+      rendement: dividende?.rendement ?? null,
     };
   });
 }
@@ -204,6 +212,10 @@ function rendre() {
   );
   const jour = veille ? ((valo - veille) / veille) * 100 : 0;
 
+  const dividendes = connues.reduce((t, l) => t + (l.dividendeAnnuel || 0), 0);
+  const rendementMoyen = valo ? (dividendes / valo) * 100 : 0;
+  const lignesAvecDividende = connues.filter((l) => l.dividendeAnnuel > 0).length;
+
   $("hero").hidden = !positions.length;
   $("vide").hidden = Boolean(positions.length);
 
@@ -221,6 +233,16 @@ function rendre() {
     `${positions.length} ligne${positions.length > 1 ? "s" : ""}` +
     (cours.maj ? ` · cours du ${new Date(cours.maj).toLocaleDateString("fr-FR")}` : " · cours jamais récupérés");
 
+  // Estimation, pas une prévision officielle : voir le commentaire de
+  // calculer(). On ne l'affiche que si au moins une ligne en verse un.
+  $("dividendes-tuile").hidden = !lignesAvecDividende;
+  if (lignesAvecDividende) {
+    $("dividendes").textContent = euros.format(dividendes);
+    $("dividendes-sub").textContent =
+      `≈ ${pourcent(rendementMoyen).replace("+", "")} du portefeuille · ` +
+      `${lignesAvecDividende} ligne${lignesAvecDividende > 1 ? "s" : ""} concernée${lignesAvecDividende > 1 ? "s" : ""}`;
+  }
+
   dessinerTreemap(lignes);
 
   $("tbody").innerHTML = lignes
@@ -228,13 +250,16 @@ function rendre() {
     .sort((a, b) => b.valo - a.valo)
     .map((l, i) => l.manquant
       ? `<tr class="manquante"><td class="nom">${l.ticker}</td>
-           <td colspan="3">aucun cours — saisis-le à la main, ou ajoute <code>"${l.ticker}"</code> à data/tickers.json</td>
+           <td colspan="4">aucun cours — saisis-le à la main, ou ajoute <code>"${l.ticker}"</code> à data/tickers.json</td>
            <td><button class="lien" data-edit="${positions.indexOf(positions.find(p => p.ticker === l.ticker))}">modifier</button></td></tr>`
       : `<tr>
            <td class="nom">${l.nom}<span class="tick">${l.ticker}${l.manuel ? " · cours saisi" : ""}</span></td>
            <td>${sparkline(l.historique, l.pvPct >= 0)}</td>
            <td>${euros.format(l.valo)}</td>
            <td class="${l.pvPct >= 0 ? "pos" : "neg"}">${pourcent(l.pvPct)}</td>
+           <td>${l.dividendeAnnuel > 0
+             ? `${euros.format(l.dividendeAnnuel)}<span class="tick">${l.rendement != null ? pourcent(l.rendement).replace("+", "") : ""}</span>`
+             : '<span class="attente">—</span>'}</td>
            <td><button class="lien" data-edit="${positions.indexOf(positions.find(p => p.ticker === l.ticker))}">modifier</button></td>
          </tr>`)
     .join("");

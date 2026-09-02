@@ -62,6 +62,40 @@ async function coursDe(symbole: string) {
   };
 }
 
+/**
+ * Dividende annuel par titre, en un seul appel groupé pour tous les symboles
+ * (moins de requêtes qu'un appel par ligne, donc moins de risque de blocage).
+ *
+ * Yahoo ne fournit pas de « dividende prévu 2026 » : `trailingAnnualDividendRate`
+ * est le dernier montant annuel par action réellement déclaré. C'est une
+ * estimation basée sur le passé, pas une promesse — la page le présente comme
+ * tel plutôt que comme un chiffre garanti.
+ */
+async function dividendesDe(symboles: string[]) {
+  if (!symboles.length) return {} as Record<string, { parAction: number; rendement: number | null }>;
+
+  const url =
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symboles.join(","))}`;
+  const reponse = await fetch(url, { headers: ENTETES_YAHOO });
+  if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+
+  const lignes = (await reponse.json())?.quoteResponse?.result ?? [];
+  const sortie: Record<string, { parAction: number; rendement: number | null }> = {};
+
+  for (const ligne of lignes) {
+    const parAction = ligne?.trailingAnnualDividendRate;
+    if (typeof parAction === "number" && parAction > 0) {
+      sortie[ligne.symbol] = {
+        parAction,
+        rendement: typeof ligne.trailingAnnualDividendYield === "number"
+          ? Math.round(ligne.trailingAnnualDividendYield * 10000) / 100 // fraction → %
+          : null,
+      };
+    }
+  }
+  return sortie;
+}
+
 Deno.serve(async (requete) => {
   if (requete.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -81,6 +115,17 @@ Deno.serve(async (requete) => {
     } catch (erreur) {
       echecs.push(`${symbole}: ${(erreur as Error).message}`);
     }
+  }
+
+  // Un échec ici ne doit pas faire échouer les cours : le dividende est un
+  // complément, son absence se traduit juste par « — » sur la ligne.
+  try {
+    const dividendes = await dividendesDe(Object.keys(valeurs));
+    for (const [symbole, dividende] of Object.entries(dividendes)) {
+      (valeurs[symbole] as Record<string, unknown>).dividende = dividende;
+    }
+  } catch {
+    // Cours disponibles, dividendes absents : la page l'affiche comme tel.
   }
 
   // Taux de change, pour convertir les lignes cotées en dollars.

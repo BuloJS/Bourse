@@ -73,8 +73,13 @@ main { max-width: 1180px; margin: 0 auto; }
 .pos { color: #7fb4f0; } .neg { color: #f08c8c; } .muted { color: var(--muted); }
 
 /* --- Panneaux --- */
-.cols { display: grid; grid-template-columns: 1.85fr 1fr; gap: 1.2rem; align-items: start; }
-@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+/* minmax(0, …) plutôt que 1.85fr/1fr nus : par défaut, une colonne de grille
+   ne rétrécit jamais en dessous du contenu qu'elle porte (min-width: auto).
+   Sans ce minmax, un tableau qui s'élargit (ex. une colonne ajoutée) pousse
+   la grille à réduire le panneau voisin — ici celui de la treemap — après
+   que ses cases ont déjà été calculées en pixels, d'où le débordement. */
+.cols { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 
 .panel { padding: 1.2rem; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
 .panel h2 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 600; }
@@ -109,7 +114,11 @@ main { max-width: 1180px; margin: 0 auto; }
 @media (max-width: 620px) { .legende .apart { display: none; } }
 
 /* --- Tableau --- */
-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+/* Le contenu (noms longs, cellules non coupées) peut dépasser le panneau une
+   fois la colonne forcée à sa largeur de grille : il défile sur son propre
+   axe plutôt que d'élargir la page ou de repousser la treemap. */
+.table-scroll { overflow-x: auto; }
+table { width: 100%; min-width: 30rem; border-collapse: collapse; font-size: .86rem; }
 th { text-align: right; font-weight: 500; color: var(--muted); font-size: .76rem; padding: .4rem .3rem; border-bottom: 1px solid var(--border); }
 th:first-child, td:first-child { text-align: left; }
 td { padding: .5rem .3rem; border-bottom: 1px solid rgba(255, 255, 255, .05); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

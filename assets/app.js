@@ -356,7 +356,12 @@ $("tbody").addEventListener("click", (event) => {
   if (bouton) ouvrirForm(Number(bouton.dataset.edit));
 });
 
-window.addEventListener("resize", () => dessinerTreemap(calculer()));
+// ResizeObserver plutôt qu'un simple écouteur "resize" de la fenêtre : il se
+// déclenche aussi quand la taille du panneau change pour une autre raison
+// que le redimensionnement de la fenêtre (un contenu voisin qui s'élargit,
+// par exemple) — c'est exactement ce qui causait des cases dessinées avec
+// une largeur périmée, débordant sur le panneau à côté.
+new ResizeObserver(() => dessinerTreemap(calculer())).observe($("map"));
 
 // --- Démarrage -------------------------------------------------------------
 

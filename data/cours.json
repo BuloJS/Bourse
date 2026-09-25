@@ -1,13 +1,13 @@
 {
-  "maj": "2026-09-24T21:12:00.522Z",
+  "maj": "2026-09-25T21:09:03.410Z",
   "taux": {
-    "EURUSD": 1.1367
+    "EURUSD": 1.1403
   },
   "echecs": [],
   "valeurs": {
     "GOOGL": {
-      "prix": 342.42001,
-      "veille": 337.82999,
+      "prix": 343.84,
+      "veille": 342.35999,
       "devise": "USD",
       "nom": "Alphabet Inc. Class A Common Stock",
       "source": "twelvedata",
@@ -139,12 +139,16 @@
         {
           "d": "2026-09-24",
           "c": 342.42
+        },
+        {
+          "d": "2026-09-25",
+          "c": 343.84
         }
       ]
     },
     "MSFT": {
-      "prix": 497.58499,
-      "veille": 500.59,
+      "prix": 516.099976,
+      "veille": 497.92999,
       "devise": "USD",
       "nom": "Microsoft Corporation Common Stock",
       "source": "twelvedata",
@@ -276,6 +280,10 @@
         {
           "d": "2026-09-24",
           "c": 497.58
+        },
+        {
+          "d": "2026-09-25",
+          "c": 516.1
         }
       ]
     }
